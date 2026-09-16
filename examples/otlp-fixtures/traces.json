@@ -1,0 +1,51 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "llm-smoke-test" } },
+          { "key": "service.version", "value": { "stringValue": "0.0.1-e2e" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "llm-smoke", "version": "0.0.1" },
+          "spans": [
+            {
+              "traceId": "11110000000000000000000000000000",
+              "spanId": "1111000000000000",
+              "name": "chat.completion",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "__START__",
+              "endTimeUnixNano": "__END__",
+              "attributes": [
+                { "key": "gen_ai.system", "value": { "stringValue": "openai" } },
+                { "key": "gen_ai.request.model", "value": { "stringValue": "gpt-4o-mini" } },
+                { "key": "gen_ai.usage.input_tokens", "value": { "intValue": "150" } },
+                { "key": "gen_ai.usage.output_tokens", "value": { "intValue": "45" } },
+                { "key": "gen_ai.prompt", "value": { "stringValue": "Hola, resume el ticket 123 (contacto test@example.com debe redactarse)." } },
+                { "key": "gen_ai.completion", "value": { "stringValue": "Ticket 123: pendiente de revisión (test@example.com)." } }
+              ]
+            },
+            {
+              "traceId": "22220000000000000000000000000000",
+              "spanId": "2222000000000000",
+              "name": "chat.completion",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "__START__",
+              "endTimeUnixNano": "__END__",
+              "attributes": [
+                { "key": "gen_ai.system", "value": { "stringValue": "ollama" } },
+                { "key": "gen_ai.request.model", "value": { "stringValue": "llama3" } },
+                { "key": "gen_ai.usage.input_tokens", "value": { "intValue": "120" } },
+                { "key": "gen_ai.usage.output_tokens", "value": { "intValue": "60" } },
+                { "key": "gen_ai.prompt", "value": { "stringValue": "Clasifica este email test@example.com." } },
+                { "key": "gen_ai.completion", "value": { "stringValue": "Clasificado como spam." } }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

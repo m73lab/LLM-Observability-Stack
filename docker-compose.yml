@@ -1,0 +1,145 @@
+# llm-observability-stack/docker-compose.yml
+#
+# Stack LLMOps independiente (open source, sin dependencias de otros stacks).
+# Es una capa satélite para observabilidad GenAI (OpenAI/Anthropic SaaS + Ollama self-hosted)
+# sobre OpenTelemetry + Jaeger + Prometheus + Loki + Grafana.
+#
+# Postura de seguridad (heredada del stack principal):
+# - Imágenes pineadas por digest (inmutables; nunca :latest).
+# - Solo se publican los puertos imprescindibles: OTLP (4320/4321) y Grafana (3003).
+# - Jaeger, Prometheus y Loki solo son accesibles dentro de observability-net.
+# - La ingesta OTLP exige Basic Auth (secrets/otlp.htpasswd).
+# - Límites de CPU/memoria por servicio.
+#
+# Credenciales requeridas en .env (no commitear):
+#   GF_SECURITY_ADMIN_PASSWORD=<password de Grafana>
+#   OTEL_OTLP_USER=<usuario de ingesta>
+#   OTEL_OTLP_PASSWORD=<password de ingesta>   (genera secrets/otlp.htpasswd)
+
+name: llm-obs
+
+networks:
+  observability-net:
+    driver: bridge
+
+services:
+  # Punto de entrada OTLP para las apps (4320 gRPC / 4321 HTTP) con Basic Auth.
+  # Procesa semántica gen_ai.*, redacta PII y reenvía trazas/logs/métricas a los backends.
+  otel-collector-llm:
+    # Digest de otel/opentelemetry-collector-contrib:v0.158.0
+    image: otel/opentelemetry-collector-contrib@sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5
+    container_name: llm-obs-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-llm-config.yaml"]
+    volumes:
+      - ./otel-collector/otel-collector-llm-config.yaml:/etc/otel-collector-llm-config.yaml:ro
+      - ./secrets/otlp.htpasswd:/etc/otel-collector/htpasswd:ro
+    ports:
+      - "4320:4320" # OTLP gRPC
+      - "4321:4321" # OTLP HTTP
+    networks:
+      - observability-net
+    depends_on:
+      - jaeger
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # Jaeger All-in-One: backends de trazas. Sin puertos publicados; se consulta
+  # desde Grafana o con túnel SSH (ssh -L 16686:jaeger:16686 homelab02).
+  jaeger:
+    # Digest de jaegertracing/all-in-one (imagen local 2025-12-03)
+    image: jaegertracing/all-in-one@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac
+    container_name: llm-obs-jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - observability-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  # Prometheus: raspa métricas del collector (8890) y aplica recording rules LLM.
+  prometheus:
+    # Digest de prom/prometheus:v3.13.2
+    image: prom/prometheus@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
+    container_name: llm-obs-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - observability-net
+    depends_on:
+      - otel-collector-llm
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
+
+  # Loki: almacena logs OTLP (prompts/completions redactados).
+  loki:
+    # Digest de grafana/loki:3.7.6
+    image: grafana/loki@sha256:efd47c67f9bac88ca29bcf8cb997d9ab29d1848bd0aff579282295542a745952
+    container_name: llm-obs-loki
+    restart: unless-stopped
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki/data
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - observability-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  # Grafana: único panel humano, publicado en 3003 (3002 usado por el stack principal).
+  grafana:
+    # Digest de grafana/grafana (imagen local 2026-08-07)
+    image: grafana/grafana@sha256:ab5cb380e3ff3172d6c8bd2e7cfd31cce977d2881b260e1f5bc089bf0b759b43
+    container_name: llm-obs-grafana
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards/json:/etc/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      # Obligatorio definirlo en .env junto al compose.
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:?Define GF_SECURITY_ADMIN_PASSWORD en .env}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    networks:
+      - observability-net
+    depends_on:
+      - prometheus
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
+# Volúmenes para persistir datos entre reinicios.
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+  loki_data: {}

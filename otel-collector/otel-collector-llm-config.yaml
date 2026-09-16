@@ -1,0 +1,114 @@
+# llm-observability-stack/otel-collector/otel-collector-llm-config.yaml
+#
+# Ingesta específica LLMOps (4320 gRPC / 4321 HTTP) con Basic Auth.
+# Orden de procesadores: memory_limiter -> transform -> redaction -> batch
+# Reenvío: trazas -> jaeger:4317, logs -> loki:3100 OTLP, métricas -> Prometheus scrape :8890.
+#
+# Precios de ejemplo (USD por 1K tokens) para llm.cost.usd — ajustar a tu modelo:
+#   gpt-4o: 0.005 in / 0.015 out | gpt-4o-mini: 0.00015 / 0.0006 | claude-3-5-sonnet: 0.003 / 0.015
+
+extensions:
+  basicauth:
+    htpasswd:
+      file: /etc/otel-collector/htpasswd
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4320
+        auth:
+          authenticator: basicauth
+      http:
+        endpoint: 0.0.0.0:4321
+        auth:
+          authenticator: basicauth
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+  # Normaliza semántica GenAI: marca llamadas a herramientas/MCP (finish_reason tool_calls),
+  # deriva coste estimado por modelo y redacta PII recurrente en atributos de logs.
+  transform:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(attributes["llm.is_tool_call"], true) where attributes["gen_ai.completion.finish_reasons"] == "tool_calls"
+          - set(attributes["llm.cost.usd"], (Double(attributes["gen_ai.usage.input_tokens"]) * 0.005 + Double(attributes["gen_ai.usage.output_tokens"]) * 0.015) / 1000.0) where attributes["gen_ai.request.model"] == "gpt-4o"
+          - set(attributes["llm.cost.usd"], (Double(attributes["gen_ai.usage.input_tokens"]) * 0.00015 + Double(attributes["gen_ai.usage.output_tokens"]) * 0.0006) / 1000.0) where attributes["gen_ai.request.model"] == "gpt-4o-mini"
+          - set(attributes["llm.cost.usd"], (Double(attributes["gen_ai.usage.input_tokens"]) * 0.003 + Double(attributes["gen_ai.usage.output_tokens"]) * 0.015) / 1000.0) where attributes["gen_ai.request.model"] == "claude-3-5-sonnet"
+          - set(attributes["llm.cost.usd"], 0.0) where attributes["gen_ai.system"] == "ollama"
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["llm.cost.usd"], 0.0) where attributes["gen_ai.system"] == "ollama"
+          - replace_all_patterns(log.attributes, "value", "(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}", "[REDACTED]")
+          - replace_all_patterns(log.attributes, "value", "\\b\\d[\\d -]{11,22}\\d\\b", "[REDACTED]")
+
+  # PII en atributos de spans (trazas): enmascara valores coincidentes.
+  # Nota: el processor redaction solo aplica a spans; en logs se usa transform (arriba).
+  redaction:
+    allow_all_keys: true
+    blocked_values:
+      # email
+      - "(?i)[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}"
+      # tarjeta 13-19 dígitos (con espacios/guiones)
+      - "\\b\\d[\\d -]{11,22}\\d\\b"
+      # IBAN ES
+      - "\\bES\\d{2}[\\d ]{20,28}\\b"
+      # DNI/NIF ES 8 dígitos + letra
+      - "\\b\\d{8}[A-HJ-NP-TV-Z]\\b"
+      # teléfono ES +34 / 6-7-9 xx xx xx
+      - "\\b(\\+34[ ]?)?[6789]\\d{2}[ .-]?\\d{3}[ .-]?\\d{3}\\b"
+    summary: debug
+
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+
+connectors:
+  # Genera métricas RED (calls + latencia) desde spans gen_ai.* para Prometheus.
+  spanmetrics:
+    namespace: spanmetrics
+    aggregation_temporality: cumulative
+    metrics_flush_interval: 15s
+    dimensions:
+      - name: gen_ai.system
+      - name: gen_ai.request.model
+      - name: llm.is_tool_call
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+  prometheus:
+    endpoint: "0.0.0.0:8890"
+
+service:
+  extensions: [basicauth, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform, redaction, batch]
+      exporters: [otlp/jaeger, spanmetrics]
+    metrics:
+      receivers: [otlp, spanmetrics]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, transform, batch]
+      exporters: [otlphttp/loki]

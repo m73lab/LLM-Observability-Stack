@@ -1,0 +1,102 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "llm-smoke-test" } }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": { "name": "llm-smoke", "version": "0.0.1" },
+          "metrics": [
+            {
+              "name": "gen_ai.usage.input_tokens",
+              "unit": "{token}",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "gen_ai.request.model", "value": { "stringValue": "gpt-4o-mini" } },
+                      { "key": "gen_ai.system", "value": { "stringValue": "openai" } }
+                    ],
+                    "startTimeUnixNano": "__START__",
+                    "timeUnixNano": "__END__",
+                    "asInt": "150"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "gen_ai.request.model", "value": { "stringValue": "llama3" } },
+                      { "key": "gen_ai.system", "value": { "stringValue": "ollama" } }
+                    ],
+                    "startTimeUnixNano": "__START__",
+                    "timeUnixNano": "__END__",
+                    "asInt": "120"
+                  }
+                ],
+                "aggregationTemporality": "AGGREGATION_TEMPORALITY_CUMULATIVE",
+                "isMonotonic": true
+              }
+            },
+            {
+              "name": "gen_ai.usage.output_tokens",
+              "unit": "{token}",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "gen_ai.request.model", "value": { "stringValue": "gpt-4o-mini" } },
+                      { "key": "gen_ai.system", "value": { "stringValue": "openai" } }
+                    ],
+                    "startTimeUnixNano": "__START__",
+                    "timeUnixNano": "__END__",
+                    "asInt": "45"
+                  },
+                  {
+                    "attributes": [
+                      { "key": "gen_ai.request.model", "value": { "stringValue": "llama3" } },
+                      { "key": "gen_ai.system", "value": { "stringValue": "ollama" } }
+                    ],
+                    "startTimeUnixNano": "__START__",
+                    "timeUnixNano": "__END__",
+                    "asInt": "60"
+                  }
+                ],
+                "aggregationTemporality": "AGGREGATION_TEMPORALITY_CUMULATIVE",
+                "isMonotonic": true
+              }
+            },
+            {
+              "name": "llm.cost.usd",
+              "unit": "USD",
+              "sum": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      { "key": "gen_ai.request.model", "value": { "stringValue": "gpt-4o-mini" } },
+                      { "key": "gen_ai.system", "value": { "stringValue": "openai" } }
+                    ],
+                    "startTimeUnixNano": "__START__",
+                    "timeUnixNano": "__END__",
+                    "asDouble": 0.00009
+                  },
+                  {
+                    "attributes": [
+                      { "key": "gen_ai.request.model", "value": { "stringValue": "llama3" } },
+                      { "key": "gen_ai.system", "value": { "stringValue": "ollama" } }
+                    ],
+                    "startTimeUnixNano": "__START__",
+                    "timeUnixNano": "__END__",
+                    "asDouble": 0.0
+                  }
+                ],
+                "aggregationTemporality": "AGGREGATION_TEMPORALITY_CUMULATIVE",
+                "isMonotonic": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

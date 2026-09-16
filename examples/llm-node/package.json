@@ -1,0 +1,18 @@
+{
+  "name": "llm-node-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ejemplo Node.js LLMOps -> otel-collector-llm :4320/:4321 (gen_ai.*)",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node -r ./instrumentation.js app.js"
+  },
+  "dependencies": {
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.57.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.57.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.57.0",
+    "@traceloop/node-server-sdk": "^0.10.0",
+    "openai": "^4.0.0"
+  }
+}

@@ -1,0 +1,6 @@
+# requirements.txt — ejemplo Python LLMOps -> otel-collector-llm :4320/:4321
+opentelemetry-distro>=0.48
+opentelemetry-exporter-otlp>=1.29
+openinference-instrumentation-openai>=0.1.0
+openinference-instrumentation-langchain>=0.1.0
+openai>=1.0.0

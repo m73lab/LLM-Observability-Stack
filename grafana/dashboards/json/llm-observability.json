@@ -1,0 +1,91 @@
+{
+  "title": "LLM Observability",
+  "uid": "llm-observability",
+  "tags": ["llm", "gen_ai", "llmops"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(gen_ai_usage_input_tokens_total, gen_ai_request_model)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Cost USD by model",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (gen_ai_request_model) (llm:cost_usd:sum_by_model{gen_ai_request_model=~\"$model\"})",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "title": "Tokens in/out by model",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (gen_ai_request_model) (rate(llm:tokens_in_total:sum_by_model{gen_ai_request_model=~\"$model\"}[5m]))",
+          "legendFormat": "in {{gen_ai_request_model}}"
+        },
+        {
+          "expr": "sum by (gen_ai_request_model) (rate(llm:tokens_out_total:sum_by_model{gen_ai_request_model=~\"$model\"}[5m]))",
+          "legendFormat": "out {{gen_ai_request_model}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "title": "Latency p95/p99 by model",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "llm:latency_p95_by_model{gen_ai_request_model=~\"$model\"}",
+          "legendFormat": "p95 {{gen_ai_request_model}}"
+        },
+        {
+          "expr": "llm:latency_p99_by_model{gen_ai_request_model=~\"$model\"}",
+          "legendFormat": "p99 {{gen_ai_request_model}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "title": "Tool calls / guardrail blocks",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "llm:tool_call_rate{gen_ai_request_model=~\"$model\"}", "legendFormat": "tool {{gen_ai_request_model}}" },
+        { "expr": "llm:guardrail_blocks_rate{gen_ai_request_model=~\"$model\"}", "legendFormat": "blocked {{gen_ai_request_model}}" }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "id": 5,
+      "title": "Prompts / completions (redacted) by trace",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "expr": "{exporter=\"OTLP\"} | json | trace_id!=\"\"" }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 }
+    }
+  ]
+}

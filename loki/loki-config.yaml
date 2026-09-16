@@ -1,0 +1,62 @@
+# loki/loki-config.yaml
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+
+common:
+  path_prefix: /loki/data
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/data/tsdb-shipper-active
+    cache_location: /loki/data/tsdb-shipper-cache
+    resync_interval: 5s
+  filesystem:
+    directory: /loki/data/chunks
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        period: 24h
+        prefix: index_
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://localhost:9093
+  ring:
+    kvstore:
+      store: inmemory
+
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  chunk_idle_period: 5m
+  chunk_retain_period: 168h
+  max_chunk_age: 1h
+
+limits_config:
+  # Necesario para atributos de logs OTLP (structured metadata) con schema v13/tsdb.
+  allow_structured_metadata: true

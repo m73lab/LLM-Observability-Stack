@@ -1,0 +1,26 @@
+# prometheus/rules/llm.yml
+# Recording rules LLMOps. Datos de origen:
+#   - métricas OTLP de las apps (gen_ai.usage.*, llm.cost.usd) -> gen_ai_usage_*_total / llm_cost_usd_total
+#   - connector spanmetrics (namespace: spanmetrics) -> spanmetrics_calls_total / spanmetrics_latency_milliseconds
+# Todas las agregaciones evitan alta cardinalidad: solo por model/system.
+
+groups:
+  - name: llm-cost
+    interval: 30s
+    rules:
+      - record: llm:tokens_in_total:sum_by_model
+        expr: sum by (gen_ai_request_model, gen_ai_system) (gen_ai_usage_input_tokens_total)
+      - record: llm:tokens_out_total:sum_by_model
+        expr: sum by (gen_ai_request_model, gen_ai_system) (gen_ai_usage_output_tokens_total)
+      - record: llm:cost_usd:sum_by_model
+        expr: sum by (gen_ai_request_model, gen_ai_system) (llm_cost_usd_total)
+
+  - name: llm-latency
+    interval: 30s
+    rules:
+      - record: llm:latency_p95_by_model
+        expr: histogram_quantile(0.95, sum by (le, gen_ai_request_model) (rate(spanmetrics_latency_milliseconds_bucket[5m])))
+      - record: llm:latency_p99_by_model
+        expr: histogram_quantile(0.99, sum by (le, gen_ai_request_model) (rate(spanmetrics_latency_milliseconds_bucket[5m])))
+      - record: llm:tool_call_rate
+        expr: sum by (gen_ai_request_model) (rate(spanmetrics_calls_total{llm_is_tool_call="true"}[5m]))
